@@ -1,7 +1,9 @@
 import { list, RADIO_BASE } from '../lib/feed';
 import { compound, fmtClock, teamColor } from '../lib/format';
 import type { Row } from '../lib/model';
+import { useTranscripts } from '../lib/transcripts';
 import type { Capture, F1State } from '../lib/types';
+import { RadioText } from './TeamRadio';
 
 export function DriverPanel({
   row,
@@ -22,6 +24,7 @@ export function DriverPanel({
   const stats = state.TimingStats?.Lines?.[row.num];
   const radios = captures.filter((c) => c.RacingNumber === row.num).slice(0, 8);
   const path = state.SessionInfo?.Path;
+  const transcripts = useTranscripts();
   const speeds = (['I1', 'I2', 'FL', 'ST'] as const).map((k) => ({
     k,
     v: l.Speeds?.[k]?.Value,
@@ -100,6 +103,7 @@ export function DriverPanel({
           <li key={c.Path}>
             <span className="muted small">{fmtClock(c.t, tz)}</span>
             {path && <audio controls preload="none" src={RADIO_BASE + path + c.Path} />}
+            {path && <RadioText path={path + c.Path} state={transcripts.get(path + c.Path)} />}
           </li>
         ))}
         {!radios.length && <li className="muted">No radio from this driver.</li>}

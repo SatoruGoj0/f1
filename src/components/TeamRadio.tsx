@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { RADIO_BASE } from '../lib/feed';
 import { fmtClock, teamColor, timeAgo } from '../lib/format';
+import { requestTranscript, serverTranscription, useTranscripts } from '../lib/transcripts';
 import type { Capture, Driver } from '../lib/types';
+
+const TEXT_PREF = 'radioText';
+const AUTO_TRANSCRIBE = 12;
+
+function readPref() {
+  try { return localStorage.getItem(TEXT_PREF); } catch { return null; }
+}
 
 type Cap = Capture & { t: number };
 
@@ -29,6 +37,22 @@ export function TeamRadio({
   const [onlySelected, setOnlySelected] = useState(false);
   const seen = useRef<Set<string> | null>(null);
   const queue = useRef<string[]>([]);
+  const transcripts = useTranscripts();
+  const [server, setServer] = useState<boolean | null>(null);
+  const [textOn, setTextOn] = useState(readPref() === '1');
+
+  useEffect(() => {
+    serverTranscription.then((s) => {
+      setServer(s);
+      if (s && readPref() !== '0') setTextOn(true);
+    });
+  }, []);
+
+  const toggleText = (on: boolean) => {
+    setTextOn(on);
+    try { localStorage.setItem(TEXT_PREF, on ? '1' : '0'); } catch { /* storage unavailable */ }
+  };
+  const clipPath = (c: Cap) => (sessionPath ? sessionPath + c.Path : '');
 
   const url = (c: Cap) => (sessionPath ? RADIO_BASE + sessionPath + c.Path : '');
 
@@ -70,6 +94,12 @@ export function TeamRadio({
 
   const shown = onlySelected && selected ? captures.filter((c) => c.RacingNumber === selected) : captures;
 
+  // Transcribe the newest clips automatically while text mode is on.
+  useEffect(() => {
+    if (!textOn || server === null || !sessionPath) return;
+    for (const c of shown.slice(0, AUTO_TRANSCRIBE)) requestTranscript(sessionPath + c.Path, true);
+  }, [textOn, server, sessionPath, shown]);
+
   return (
     <section className="panel radio">
       <header className="panel-head">
@@ -81,12 +111,25 @@ export function TeamRadio({
               {drivers[selected]?.Tla ?? selected} only
             </label>
           )}
+          <label
+            className="toggle"
+            title={server ? 'Transcribe radio with Whisper' : 'Transcribe in your browser (one-time ~75 MB model download)'}
+          >
+            <input type="checkbox" checked={textOn} onChange={(e) => toggleText(e.target.checked)} />
+            Text{server === false ? ' (in-browser)' : ''}
+          </label>
           <label className="toggle">
             <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} />
             Auto-play new
           </label>
         </div>
       </header>
+      {transcripts.modelProgress != null && (
+        <div className="model-progress small muted">
+          Downloading speech model… {Math.round(transcripts.modelProgress)}%
+          <div className="wave"><div className="wave-fill" style={{ width: `${transcripts.modelProgress}%` }} /></div>
+        </div>
+      )}
       <audio
         ref={audio}
         preload="none"
@@ -123,6 +166,7 @@ export function TeamRadio({
                 <div className="wave">
                   <div className="wave-fill" style={{ width: isPlaying ? `${progress * 100}%` : '0%' }} />
                 </div>
+                <RadioText path={clipPath(c)} state={transcripts.get(clipPath(c))} />
               </div>
             </li>
           );
@@ -131,4 +175,24 @@ export function TeamRadio({
       </ul>
     </section>
   );
+}
+
+export function RadioText({ path, state }: { path: string; state?: ReturnType<ReturnType<typeof useTranscripts>['get']> }) {
+  if (!path) return null;
+  if (!state || (state.status === 'error' && state.error === 'disabled')) {
+    return (
+      <button className="link small" onClick={() => requestTranscript(path, true)}>
+        Show text
+      </button>
+    );
+  }
+  if (state.status === 'pending') return <div className="radio-text pending small">Transcribing…</div>;
+  if (state.status === 'error') {
+    return (
+      <button className="link small error" onClick={() => requestTranscript(path, true)} title={state.error}>
+        Transcription failed. Retry
+      </button>
+    );
+  }
+  return <div className="radio-text">{state.text ? `“${state.text}”` : <span className="muted small">(no speech)</span>}</div>;
 }

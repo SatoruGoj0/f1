@@ -287,3 +287,10 @@ select, input { font: inherit; }
   .stats { gap: 12px; }
   .weather { display: none; }
 }
+
+/* ---------- Radio transcripts ---------- */
+.radio-text { margin-top: 5px; font-size: 13px; line-height: 1.35; color: #d7dae3; font-style: italic; }
+.radio-text.pending { color: var(--muted); animation: pulse 1.4s infinite; }
+.link { background: none; border: 0; padding: 0; margin-top: 4px; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.link:hover { color: var(--text); }
+.model-progress { padding: 6px 12px; border-bottom: 1px solid var(--line); }

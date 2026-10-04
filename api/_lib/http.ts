@@ -21,3 +21,6 @@ export async function fetchText(url: string): Promise<string | null> {
   if (!r.ok) return null;
   return (await r.text()).replace(/^﻿/, '');
 }
+
+/** A team-radio clip path inside the live-timing archive. */
+export const RADIO_PATH = /^\d{4}\/[\w\-.]+\/[\w\-.]+\/TeamRadio\/[\w\-.]+\.mp3$/;
